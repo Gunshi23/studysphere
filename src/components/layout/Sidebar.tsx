@@ -32,6 +32,7 @@ export default function Sidebar() {
     { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} /> },
     { name: 'Study Rooms', href: '/rooms', icon: <Video size={18} /> },
     { name: 'Create Room', href: '/rooms/create', icon: <Plus size={18} /> },
+    { name: 'Sessions', href: '/session/default', icon: <Timer size={18} /> },
     { name: 'Activity', href: '/activity', icon: <Activity size={18} /> },
     { name: 'Leaderboard', href: '/leaderboard', icon: <Trophy size={18} /> },
     { name: 'Notifications', href: '/notifications', icon: <Bell size={18} /> },
@@ -79,6 +80,8 @@ export default function Sidebar() {
               isActive = pathname === '/rooms/create';
             } else if (item.href === '/rooms') {
               isActive = (pathname === '/rooms' || pathname.startsWith('/rooms/')) && pathname !== '/rooms/create';
+            } else if (item.href.startsWith('/session/')) {
+              isActive = pathname.startsWith('/session/');
             } else {
               isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'));
             }
