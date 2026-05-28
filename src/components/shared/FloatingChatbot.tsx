@@ -11,7 +11,6 @@ import {
   AlertCircle,
   Trash2,
   Mic,
-  MicOff,
   Volume2,
   VolumeX,
 } from "lucide-react";
@@ -163,6 +162,18 @@ export default function FloatingChatbot() {
   const synthesisRef = useRef<SpeechSynthesis | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
+  // Refs to always provide the latest state in event listeners without re-running effects
+  const messagesRef = useRef<Message[]>(messages);
+  const isVoiceEnabledRef = useRef<boolean>(isVoiceEnabled);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    isVoiceEnabledRef.current = isVoiceEnabled;
+  }, [isVoiceEnabled]);
+
   // Load chat session history and voice options from localStorage
   useEffect(() => {
     try {
@@ -196,7 +207,7 @@ export default function FloatingChatbot() {
     }
   }, [messages]);
 
-  // Speech Recognition & Synthesis initial setup
+  // Speech Recognition & Synthesis initial setup (ONCE ON MOUNT)
   useEffect(() => {
     if (typeof window !== "undefined") {
       synthesisRef.current = window.speechSynthesis;
@@ -221,8 +232,7 @@ export default function FloatingChatbot() {
         rec.onresult = (event: any) => {
           const transcript = event.results[0][0].transcript;
           if (transcript) {
-            setInputValue(transcript);
-            submitVoiceInput(transcript);
+            sendMessage(transcript);
           }
         };
 
@@ -240,7 +250,7 @@ export default function FloatingChatbot() {
         synthesisRef.current.cancel();
       }
     };
-  }, [messages]);
+  }, []);
 
   // Autoscroll to bottom
   useEffect(() => {
@@ -305,25 +315,23 @@ export default function FloatingChatbot() {
     }
   };
 
-  const handleSend = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       sender: "user",
-      text: inputValue.trim(),
+      text: text.trim(),
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInputValue("");
     setIsLoading(true);
     setIsError(false);
     stopSpeaking();
 
     try {
-      const history = messages
+      const history = messagesRef.current
         .filter((m) => m.id !== "initial-welcome")
         .map((m) => ({
           role: m.sender === "user" ? "user" : "model",
@@ -357,7 +365,7 @@ export default function FloatingChatbot() {
 
       setMessages((prev) => [...prev, responseMessage]);
 
-      if (isVoiceEnabled) {
+      if (isVoiceEnabledRef.current) {
         speakText(reply);
       }
     } catch (error) {
@@ -368,66 +376,11 @@ export default function FloatingChatbot() {
     }
   };
 
-  const submitVoiceInput = async (spokenText: string) => {
-    if (!spokenText.trim() || isLoading) return;
-
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      sender: "user",
-      text: spokenText.trim(),
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+  const handleSend = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!inputValue.trim()) return;
+    sendMessage(inputValue);
     setInputValue("");
-    setIsLoading(true);
-    setIsError(false);
-    stopSpeaking();
-
-    try {
-      const history = messages
-        .filter((m) => m.id !== "initial-welcome")
-        .map((m) => ({
-          role: m.sender === "user" ? "user" : "model",
-          text: m.text,
-        }));
-
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: userMessage.text,
-          history,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to retrieve chat response");
-      }
-
-      const data = await res.json();
-      const reply = data.text || "No response received.";
-
-      const responseMessage: Message = {
-        id: `ai-${Date.now()}`,
-        sender: "ai",
-        text: reply,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, responseMessage]);
-
-      if (isVoiceEnabled) {
-        speakText(reply);
-      }
-    } catch (error) {
-      console.error("Failed to communicate with SphereAI:", error);
-      setIsError(true);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const clearChat = () => {
@@ -612,11 +565,9 @@ export default function FloatingChatbot() {
                     <button
                       onClick={() => {
                         setIsError(false);
-                        const lastUserMsg = [...messages].reverse().find(m => m.sender === "user");
+                        const lastUserMsg = [...messagesRef.current].reverse().find(m => m.sender === "user");
                         if (lastUserMsg) {
-                          setInputValue(lastUserMsg.text);
-                          // Remove the last message from UI to retry cleanly
-                          setMessages(prev => prev.filter(m => m.id !== lastUserMsg.id));
+                          sendMessage(lastUserMsg.text);
                         }
                       }}
                       className="mt-1 px-3 py-1 rounded bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30 transition-colors text-xs font-medium cursor-pointer max-w-fit"
