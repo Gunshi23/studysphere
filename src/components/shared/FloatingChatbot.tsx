@@ -2,7 +2,19 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Bot, X, Send, User, AlertCircle, Trash2 } from "lucide-react";
+import {
+  Sparkles,
+  Bot,
+  X,
+  Send,
+  User,
+  AlertCircle,
+  Trash2,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 
 interface Message {
   id: string;
@@ -26,7 +38,7 @@ const FormatMessage = ({ text }: { text: string }) => {
         elements.push(
           <pre
             key={`code-${index}`}
-            className="my-2 p-3 rounded-lg bg-[#090520]/90 border border-slate-800 font-mono text-xs text-cyan-400 overflow-x-auto select-all max-w-full"
+            className="my-2 p-3 rounded-lg bg-[#090520]/90 border border-slate-800/80 font-mono text-xs text-cyan-400 overflow-x-auto select-all max-w-full"
           >
             {codeLanguage && (
               <span className="block text-[9px] text-slate-500 uppercase tracking-widest mb-1">
@@ -103,6 +115,30 @@ function parseInlineMarkdown(text: string): React.ReactNode[] {
   });
 }
 
+function cleanTextForSpeech(text: string): string {
+  let clean = text;
+  
+  // 1. Remove markdown code blocks completely
+  clean = clean.replace(/```[\s\S]*?```/g, " [code snippet omitted] ");
+
+  // 2. Remove inline code wrapping
+  clean = clean.replace(/`([^`]+)`/g, "$1");
+
+  // 3. Remove bold/italic markup
+  clean = clean.replace(/\*\*([^*]+)\*\*/g, "$1");
+  clean = clean.replace(/\*([^*]+)\*/g, "$1");
+  clean = clean.replace(/__([^_]+)__/g, "$1");
+  clean = clean.replace(/_([^_]+)_/g, "$1");
+
+  // 4. Clean up list symbols/hyphens
+  clean = clean.replace(/^\s*[*\-]\s+/gm, "");
+
+  // 5. Clean extra whitespace
+  clean = clean.replace(/\s+/g, " ").trim();
+
+  return clean;
+}
+
 export default function FloatingChatbot() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -116,9 +152,18 @@ export default function FloatingChatbot() {
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Voice integration states
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
 
-  // Load chat session history from localStorage if available
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const synthesisRef = useRef<SpeechSynthesis | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  // Load chat session history and voice options from localStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem("sphere_ai_chat");
@@ -130,20 +175,71 @@ export default function FloatingChatbot() {
         }));
         setMessages(formatted);
       }
+      
+      const storedVoice = localStorage.getItem("sphere_ai_voice_enabled");
+      if (storedVoice) {
+        setIsVoiceEnabled(storedVoice === "true");
+      }
     } catch (e) {
-      console.error("Failed to restore chat session storage:", e);
+      console.error("Failed to restore chat configurations:", e);
     }
   }, []);
 
-  // Save messages to localStorage whenever they change
+  // Save messages to localStorage
   useEffect(() => {
     try {
       if (messages.length > 1) {
         localStorage.setItem("sphere_ai_chat", JSON.stringify(messages));
       }
     } catch (e) {
-      console.error("Failed to sync chat session to storage:", e);
+      console.error("Failed to sync chat session:", e);
     }
+  }, [messages]);
+
+  // Speech Recognition & Synthesis initial setup
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      synthesisRef.current = window.speechSynthesis;
+
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
+      if (SpeechRecognition) {
+        const rec = new SpeechRecognition();
+        rec.continuous = false;
+        rec.interimResults = false;
+        rec.lang = "en-US";
+
+        rec.onstart = () => {
+          setIsListening(true);
+        };
+
+        rec.onend = () => {
+          setIsListening(false);
+        };
+
+        rec.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          if (transcript) {
+            setInputValue(transcript);
+            submitVoiceInput(transcript);
+          }
+        };
+
+        rec.onerror = (event: any) => {
+          console.error("Speech Recognition Error:", event.error);
+          setIsListening(false);
+        };
+
+        recognitionRef.current = rec;
+      }
+    }
+
+    return () => {
+      if (synthesisRef.current) {
+        synthesisRef.current.cancel();
+      }
+    };
   }, [messages]);
 
   // Autoscroll to bottom
@@ -152,6 +248,62 @@ export default function FloatingChatbot() {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isOpen, isLoading]);
+
+  const speakText = (text: string) => {
+    if (!synthesisRef.current) return;
+    
+    // Interrupt existing voice playback
+    synthesisRef.current.cancel();
+
+    const cleaned = cleanTextForSpeech(text);
+    const utterance = new SpeechSynthesisUtterance(cleaned);
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+
+    utterance.onerror = (e) => {
+      console.error("Speech Synthesis Error:", e);
+      setIsSpeaking(false);
+    };
+
+    utteranceRef.current = utterance;
+    synthesisRef.current.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    if (synthesisRef.current) {
+      synthesisRef.current.cancel();
+    }
+    setIsSpeaking(false);
+  };
+
+  const toggleVoiceOutput = () => {
+    const newVal = !isVoiceEnabled;
+    setIsVoiceEnabled(newVal);
+    localStorage.setItem("sphere_ai_voice_enabled", String(newVal));
+    if (!newVal) {
+      stopSpeaking();
+    }
+  };
+
+  const toggleDictation = () => {
+    if (!recognitionRef.current) {
+      alert("Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.");
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      stopSpeaking();
+      recognitionRef.current.start();
+    }
+  };
 
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -168,11 +320,11 @@ export default function FloatingChatbot() {
     setInputValue("");
     setIsLoading(true);
     setIsError(false);
+    stopSpeaking();
 
     try {
-      // Map history inside chat window
       const history = messages
-        .filter((m) => m.id !== "initial-welcome") // skip introductory welcome to save tokens
+        .filter((m) => m.id !== "initial-welcome")
         .map((m) => ({
           role: m.sender === "user" ? "user" : "model",
           text: m.text,
@@ -194,15 +346,82 @@ export default function FloatingChatbot() {
       }
 
       const data = await res.json();
+      const reply = data.text || "No response received.";
 
       const responseMessage: Message = {
         id: `ai-${Date.now()}`,
         sender: "ai",
-        text: data.text || "No response received.",
+        text: reply,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, responseMessage]);
+
+      if (isVoiceEnabled) {
+        speakText(reply);
+      }
+    } catch (error) {
+      console.error("Failed to communicate with SphereAI:", error);
+      setIsError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const submitVoiceInput = async (spokenText: string) => {
+    if (!spokenText.trim() || isLoading) return;
+
+    const userMessage: Message = {
+      id: `user-${Date.now()}`,
+      sender: "user",
+      text: spokenText.trim(),
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInputValue("");
+    setIsLoading(true);
+    setIsError(false);
+    stopSpeaking();
+
+    try {
+      const history = messages
+        .filter((m) => m.id !== "initial-welcome")
+        .map((m) => ({
+          role: m.sender === "user" ? "user" : "model",
+          text: m.text,
+        }));
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: userMessage.text,
+          history,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to retrieve chat response");
+      }
+
+      const data = await res.json();
+      const reply = data.text || "No response received.";
+
+      const responseMessage: Message = {
+        id: `ai-${Date.now()}`,
+        sender: "ai",
+        text: reply,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, responseMessage]);
+
+      if (isVoiceEnabled) {
+        speakText(reply);
+      }
     } catch (error) {
       console.error("Failed to communicate with SphereAI:", error);
       setIsError(true);
@@ -213,6 +432,7 @@ export default function FloatingChatbot() {
 
   const clearChat = () => {
     if (confirm("Reset current study chat history?")) {
+      stopSpeaking();
       const reset: Message[] = [
         {
           id: "initial-welcome",
@@ -289,10 +509,26 @@ export default function FloatingChatbot() {
                   <h4 className="font-semibold text-sm text-slate-100 flex items-center gap-1.5 leading-none">
                     SphereAI Node
                   </h4>
-                  <span className="text-[10px] text-slate-400">Study Companion v1.2</span>
+                  <span className="text-[10px] text-slate-400">Voice Assistant Ready</span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
+                {/* Voice Toggle button */}
+                <button
+                  onClick={toggleVoiceOutput}
+                  title={isVoiceEnabled ? "Mute voice answers" : "Unmute voice answers"}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    isVoiceEnabled
+                      ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                      : "hover:bg-slate-800/40 text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {isVoiceEnabled ? (
+                    <Volume2 className="w-4 h-4" />
+                  ) : (
+                    <VolumeX className="w-4 h-4" />
+                  )}
+                </button>
                 <button
                   onClick={clearChat}
                   title="Clear conversation"
@@ -394,17 +630,90 @@ export default function FloatingChatbot() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Speaking Status Panel */}
+            <AnimatePresence>
+              {isSpeaking && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="flex items-center gap-2.5 py-2 px-4 bg-purple-500/10 border-t border-purple-500/20 text-purple-300 text-xs shrink-0 backdrop-blur-md"
+                >
+                  <span className="flex items-center gap-0.5">
+                    <span className="w-1.5 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
+                    <span className="w-1.5 h-4.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
+                    <span className="w-1.5 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
+                  </span>
+                  <span className="font-medium">SphereAI is speaking...</span>
+                  <button
+                    type="button"
+                    onClick={stopSpeaking}
+                    className="ml-auto px-2 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-[10px] text-purple-200 transition-colors cursor-pointer"
+                  >
+                    Stop playback
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Dictation Listening Overlay */}
+            <AnimatePresence>
+              {isListening && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-[#090520]/95 flex flex-col items-center justify-center z-20"
+                >
+                  <div className="relative w-20 h-20 flex items-center justify-center mb-6">
+                    <div className="absolute inset-0 bg-purple-500/20 rounded-full animate-ping"></div>
+                    <div className="absolute -inset-2 bg-purple-500/15 rounded-full animate-pulse"></div>
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg border border-purple-400/35 relative">
+                      <Mic className="w-7 h-7 text-white animate-pulse" />
+                    </div>
+                  </div>
+                  <h4 className="text-slate-100 font-semibold tracking-wide animate-pulse">
+                    Listening for Dictation...
+                  </h4>
+                  <p className="text-slate-400 text-xs mt-1.5 max-w-[80%] text-center">
+                    Speak clearly. We will automatically submit when you finish talking.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={toggleDictation}
+                    className="mt-6 px-4.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    Cancel Dictation
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Input Form */}
             <form
               onSubmit={handleSend}
               className="p-3 border-t border-slate-800/80 bg-slate-950/40 flex items-center gap-2"
             >
+              {/* Voice recognition mic toggle button */}
+              <button
+                type="button"
+                onClick={toggleDictation}
+                title="Start dictation"
+                className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 border ${
+                  isListening
+                    ? "bg-rose-500/20 text-rose-400 border-rose-500/40"
+                    : "bg-slate-900/50 hover:bg-slate-900 text-slate-400 hover:text-slate-200 border-slate-850"
+                }`}
+              >
+                <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+
               <input
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 disabled={isLoading}
-                placeholder="Ask SphereAI anything..."
+                placeholder="Ask SphereAI or dictate..."
                 className="flex-1 bg-slate-900/50 border border-slate-800 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30 transition-all disabled:opacity-50"
               />
               <button
