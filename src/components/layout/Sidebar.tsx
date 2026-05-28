@@ -17,7 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  X
+  X,
+  Plus
 } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -30,7 +31,7 @@ export default function Sidebar() {
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} /> },
     { name: 'Study Rooms', href: '/rooms', icon: <Video size={18} /> },
-    { name: 'Sessions', href: '/session/default', icon: <Timer size={18} /> },
+    { name: 'Create Room', href: '/rooms/create', icon: <Plus size={18} /> },
     { name: 'Activity', href: '/activity', icon: <Activity size={18} /> },
     { name: 'Leaderboard', href: '/leaderboard', icon: <Trophy size={18} /> },
     { name: 'Notifications', href: '/notifications', icon: <Bell size={18} /> },
@@ -73,7 +74,14 @@ export default function Sidebar() {
         {/* Navigation Items */}
         <nav className="flex flex-col gap-1.5">
           {menuItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            let isActive = false;
+            if (item.href === '/rooms/create') {
+              isActive = pathname === '/rooms/create';
+            } else if (item.href === '/rooms') {
+              isActive = (pathname === '/rooms' || pathname.startsWith('/rooms/')) && pathname !== '/rooms/create';
+            } else {
+              isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'));
+            }
             return (
               <Link key={item.name} href={item.href}>
                 <div
