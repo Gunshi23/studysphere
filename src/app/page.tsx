@@ -12,6 +12,7 @@ import Testimonials from '@/components/Sections/Testimonials';
 import CTA from '@/components/Sections/CTA';
 import Footer from '@/components/Sections/Footer';
 import GlowingButton from '@/components/UI/GlowingButton';
+import Link from 'next/link';
 
 export default function Home() {
   const [isNavScrolled, setIsNavScrolled] = useState(false);
@@ -71,9 +72,11 @@ export default function Home() {
 
           {/* Action button */}
           <div>
-            <GlowingButton variant="secondary" className="px-5 py-2 text-xs">
-              Enter App
-            </GlowingButton>
+            <Link href="/login">
+              <GlowingButton variant="secondary" className="px-5 py-2 text-xs">
+                Enter App
+              </GlowingButton>
+            </Link>
           </div>
         </div>
       </motion.header>

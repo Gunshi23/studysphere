@@ -7,6 +7,8 @@ import HeroCanvas from '../ThreeCanvas/HeroCanvas';
 import ClientOnly from '../ClientOnly';
 import { ArrowRight, Compass } from 'lucide-react';
 
+import Link from 'next/link';
+
 export default function Hero() {
   return (
     <section className="relative min-h-screen w-full flex items-center justify-center overflow-hidden pt-20 select-none">
@@ -66,9 +68,11 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.45, ease: 'easeOut' }}
           className="flex flex-col sm:flex-row gap-4 justify-center items-center"
         >
-          <GlowingButton variant="primary">
-            Start Studying <ArrowRight size={16} />
-          </GlowingButton>
+          <Link href="/login" className="w-full sm:w-auto">
+            <GlowingButton variant="primary" className="w-full">
+              Start Studying <ArrowRight size={16} />
+            </GlowingButton>
+          </Link>
           <GlowingButton variant="secondary">
             <Compass size={16} className="text-studysphere-purple" /> Explore Rooms
           </GlowingButton>

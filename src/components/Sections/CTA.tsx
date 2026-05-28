@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import GlowingButton from '../UI/GlowingButton';
 import { ArrowRight, Sparkles } from 'lucide-react';
 
@@ -64,9 +65,11 @@ export default function CTA() {
           transition={{ duration: 0.6, delay: 0.45 }}
           className="flex justify-center"
         >
-          <GlowingButton variant="primary" className="px-10 py-4 text-sm tracking-widest font-bold">
-            START STUDYING NOW <ArrowRight size={16} />
-          </GlowingButton>
+          <Link href="/login">
+            <GlowingButton variant="primary" className="px-10 py-4 text-sm tracking-widest font-bold">
+              START STUDYING NOW <ArrowRight size={16} />
+            </GlowingButton>
+          </Link>
         </motion.div>
       </div>
     </section>
