@@ -360,9 +360,9 @@ export default function LoginPage() {
                 {/* Create Account link footer */}
                 <p className="text-center text-xs text-slate-400 mt-8 font-light">
                   Don&apos;t have an account?{' '}
-                  <a href="#" className="text-studysphere-purple hover:underline font-medium">
+                  <Link href="/register" className="text-studysphere-purple hover:underline font-medium">
                     Create Account
-                  </a>
+                  </Link>
                 </p>
               </motion.div>
             ) : (
