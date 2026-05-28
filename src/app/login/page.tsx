@@ -6,6 +6,7 @@ import { Eye, EyeOff, Mail, Lock, ArrowRight, Loader2, CheckCircle2, ShieldAlert
 import Link from 'next/link';
 import LoginCanvas from '@/components/ThreeCanvas/LoginCanvas';
 import ClientOnly from '@/components/ClientOnly';
+import { useAuth } from '@/providers/AuthProvider';
 
 // 1. Customized Glassmorphic input field with floating label
 interface FormInputProps {
@@ -102,6 +103,7 @@ function FormInput({
 }
 
 export default function LoginPage() {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -138,17 +140,21 @@ export default function LoginPage() {
     return isValid;
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading || success) return;
 
     if (validate()) {
-      // Mock validation success: loading simulation
       setLoading(true);
-      setTimeout(() => {
-        setLoading(false);
+      try {
+        await login(email);
         setSuccess(true);
-      }, 2000);
+      } catch (err) {
+        setShakeCard(true);
+        setTimeout(() => setShakeCard(false), 500);
+      } finally {
+        setLoading(false);
+      }
     } else {
       // Trigger card shake feedback on error
       setShakeCard(true);
@@ -394,7 +400,7 @@ export default function LoginPage() {
                     transition={{ duration: 1.5, ease: 'easeInOut' }}
                     onAnimationComplete={() => {
                       // Redirect back home after success loader finishes
-                      window.location.href = '/';
+                      window.location.href = '/dashboard';
                     }}
                     className="h-full bg-gradient-to-r from-studysphere-purple to-studysphere-blue rounded-full shadow-[0_0_10px_rgba(139,92,246,0.5)]"
                   />

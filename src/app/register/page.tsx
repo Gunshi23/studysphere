@@ -6,6 +6,7 @@ import { Eye, EyeOff, User, Mail, Lock, ArrowRight, Loader2, CheckCircle2, Shiel
 import Link from 'next/link';
 import RegisterCanvas from '@/components/ThreeCanvas/RegisterCanvas';
 import ClientOnly from '@/components/ClientOnly';
+import { useAuth } from '@/providers/AuthProvider';
 
 // Reusable Form Input Component with Floating Labels
 interface FormInputProps {
@@ -102,6 +103,7 @@ function FormInput({
 }
 
 export default function RegisterPage() {
+  const { register } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -152,7 +154,7 @@ export default function RegisterPage() {
   };
 
   // Form submit handler
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading || success) return;
 
@@ -198,12 +200,16 @@ export default function RegisterPage() {
     setErrors(tempErrors);
 
     if (isValid) {
-      // Mock signup loading state
       setLoading(true);
-      setTimeout(() => {
-        setLoading(false);
+      try {
+        await register(name, email, avatarPreview);
         setSuccess(true);
-      }, 2000);
+      } catch (err) {
+        setShakeCard(true);
+        setTimeout(() => setShakeCard(false), 500);
+      } finally {
+        setLoading(false);
+      }
     } else {
       // Trigger card shake visual
       setShakeCard(true);
@@ -533,8 +539,8 @@ export default function RegisterPage() {
                     animate={{ width: '100%' }}
                     transition={{ duration: 1.5, ease: 'easeInOut' }}
                     onAnimationComplete={() => {
-                      // Redirect to login screen
-                      window.location.href = '/login';
+                      // Redirect to dashboard
+                      window.location.href = '/dashboard';
                     }}
                     className="h-full bg-gradient-to-r from-studysphere-purple to-studysphere-blue rounded-full shadow-[0_0_10px_rgba(139,92,246,0.5)]"
                   />
