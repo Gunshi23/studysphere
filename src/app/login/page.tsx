@@ -147,11 +147,20 @@ export default function LoginPage() {
     if (validate()) {
       setLoading(true);
       try {
-        await login(email);
+        await login(email, password);
         setSuccess(true);
-      } catch (err) {
+      } catch (err: any) {
         setShakeCard(true);
         setTimeout(() => setShakeCard(false), 500);
+        
+        const code = err?.code;
+        if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+          setErrors({ email: 'Invalid email address or password.' });
+        } else if (code === 'auth/too-many-requests') {
+          setErrors({ email: 'Too many login attempts. Access temporarily locked.' });
+        } else {
+          setErrors({ email: err?.message || 'Authentication node connection failed.' });
+        }
       } finally {
         setLoading(false);
       }

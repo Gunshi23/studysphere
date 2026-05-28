@@ -202,11 +202,22 @@ export default function RegisterPage() {
     if (isValid) {
       setLoading(true);
       try {
-        await register(name, email, avatarPreview);
+        await register(name, email, password, avatarPreview);
         setSuccess(true);
-      } catch (err) {
+      } catch (err: any) {
         setShakeCard(true);
         setTimeout(() => setShakeCard(false), 500);
+
+        const code = err?.code;
+        if (code === 'auth/email-already-in-use') {
+          setErrors({ email: 'This email is already registered.' });
+        } else if (code === 'auth/weak-password') {
+          setErrors({ password: 'The password is too weak.' });
+        } else if (code === 'auth/invalid-email') {
+          setErrors({ email: 'Invalid email address format.' });
+        } else {
+          setErrors({ email: err?.message || 'Failed to create student node.' });
+        }
       } finally {
         setLoading(false);
       }
