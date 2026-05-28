@@ -3,6 +3,7 @@ import './globals.css';
 import SmoothScroll from '@/components/SmoothScroll';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { QueryProvider } from '@/providers/QueryProvider';
+import FloatingChatbot from '@/components/shared/FloatingChatbot';
 
 export const viewport: Viewport = {
   themeColor: '#030014',
@@ -36,6 +37,7 @@ export default function RootLayout({
           <QueryProvider>
             <AuthProvider>
               {children}
+              <FloatingChatbot />
             </AuthProvider>
           </QueryProvider>
         </SmoothScroll>
