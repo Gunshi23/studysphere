@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import SmoothScroll from '@/components/SmoothScroll';
 import { AuthProvider } from '@/providers/AuthProvider';
+import { QueryProvider } from '@/providers/QueryProvider';
 
 export const viewport: Viewport = {
   themeColor: '#030014',
@@ -32,9 +33,11 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased dark scroll-smooth">
       <body className="min-h-full flex flex-col bg-studysphere-bg text-slate-100 overflow-x-hidden selection:bg-studysphere-purple/30">
         <SmoothScroll>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
+          <QueryProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </QueryProvider>
         </SmoothScroll>
       </body>
     </html>
