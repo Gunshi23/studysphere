@@ -30,11 +30,13 @@ export default function RoomPreview() {
 
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(2999); // 49:59
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll chat to bottom
+  // Auto-scroll chat container to bottom (without scrolling the browser window)
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages, typingUser]);
 
   // Pomodoro countdown simulation
@@ -317,7 +319,7 @@ export default function RoomPreview() {
             </div>
 
             {/* Chats list area */}
-            <div className="flex-grow overflow-y-auto space-y-3 pr-2 scrollbar-thin max-h-[300px] lg:max-h-[360px]">
+            <div ref={chatContainerRef} className="flex-grow overflow-y-auto space-y-3 pr-2 scrollbar-thin max-h-[300px] lg:max-h-[360px]">
               <AnimatePresence initial={false}>
                 {messages.map((msg) => (
                   <motion.div
@@ -381,7 +383,6 @@ export default function RoomPreview() {
                   </motion.div>
                 )}
               </AnimatePresence>
-              <div ref={chatBottomRef} />
             </div>
 
             {/* Send chat entry box */}
